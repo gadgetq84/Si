@@ -1,2 +1,2 @@
 # Si
-C
+C programs as part of training
