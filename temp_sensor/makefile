@@ -11,4 +11,4 @@ color.o: color.c
 
 clean: 
 	del *.o
-	del prog.exe
+	del sensor.exe
