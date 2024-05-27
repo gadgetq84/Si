@@ -6,7 +6,7 @@
 #include <ncurses/ncurses.h>
 #define MIN_Y 2
 
-enum {LEFT, UP, RIGHT, DOWN, STOP_GAME=KEY_F(10),NEW_GAME=KEY_F(2)};
+enum {LEFT, UP, RIGHT, DOWN, STOP_GAME=KEY_F(10),NEW_GAME=KEY_F(2) ,END_GAME='q'};
 enum {CONTROLS=3,MAX_TAIL_SIZE=100, START_TAIL_SIZE=3, MAX_FOOD_SIZE=2,FOOD_EXPIRE_SECONDS=10};
 //структура еды struct food
 struct food
@@ -287,11 +287,12 @@ void changeDirection(snake_t* snake, const int32_t key)
 		}
 	}
 }
-//вместо ее придумал типа дилогбокса WINDOW * printEndScoreBox(int count) 
+
 //  при достижении конца показывается менюшка 
 void printExit(snake_t *head)
 {
-	
+	//вместо printExit(snake_t *head) 
+	// WINDOW * printEndScoreBox(int count)
 }
 
 //не совсем понятно как связать уровень с структурой змеи если только по длине хвоста
@@ -346,6 +347,7 @@ WINDOW * printEndScoreBox(int count)
 int main()
 {
 	WINDOW *my_win;
+	int endgame=0;
 	snake_t* snake = (snake_t*)malloc(sizeof(snake_t));
 	struct food* foods = (struct food*) malloc(sizeof(struct food)*MAX_FOOD_SIZE);
 	initSnake(snake,START_TAIL_SIZE,10,10);
@@ -361,7 +363,7 @@ int main()
 	noecho(); // Отключаем echo() режим при вызове getch
 	curs_set(FALSE); //Отключаем курсор
 	attron(COLOR_PAIR(2));
-	mvprintw(0, 1,"Use arrows for control. Press'F10' for EXIT");
+	mvprintw(0, 1,"Use arrows for control. Press'q' for end GAME");
 	attron(COLOR_PAIR(3));
 	timeout(0); //Отключаем таймаут после нажатия клавиши в цикле
 	int key_pressed=0;
@@ -385,6 +387,11 @@ int main()
 		{
 			 pause();
 		}
+		
+		if(key_pressed == END_GAME)
+		{
+			endgame=1;
+		}
 		//timeout(50); // Задержка при отрисовке
 		changeDirection(snake, key_pressed);
 		refreshFood(foods, MAX_FOOD_SIZE);// Обновляем еду
@@ -405,7 +412,7 @@ int main()
 			attron(COLOR_PAIR(3));
 		}
 		//слопали всю еду пора показывать наш результат 
-		if(getFoodsCount(foods)== MAX_FOOD_SIZE)
+		if(getFoodsCount(foods)== MAX_FOOD_SIZE || endgame==1)
 		{
 			
 			my_win = printEndScoreBox(getFoodsCount(foods));
@@ -419,11 +426,17 @@ int main()
 				//сбрасываем размер хвоста
 				resetTail(snake);
 				//clrtoeol();
-				printSnakeScore(getFoodsCount(foods));
 				wclear(my_win);
 				wborder(my_win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
 				wrefresh(my_win);
 				delwin(my_win);
+				endgame=0;
+				// цветные красатульки
+				attron(COLOR_PAIR(1));
+				printSnakeScore(getFoodsCount(foods));
+				printLevel(snake);
+				// цветные красатульки
+				attron(COLOR_PAIR(3));
 			}
 		}
 		
