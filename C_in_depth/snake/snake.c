@@ -5,6 +5,7 @@
 #include <time.h>
 #include <ncurses/ncurses.h>
 #define MIN_Y 2
+#define PLAYERS 2
 
 enum {LEFT, UP, RIGHT, DOWN, STOP_GAME=KEY_F(10),NEW_GAME=KEY_F(2) ,END_GAME='q'};
 enum {CONTROLS=3,MAX_TAIL_SIZE=100, START_TAIL_SIZE=3, MAX_FOOD_SIZE=2,FOOD_EXPIRE_SECONDS=10};
@@ -28,7 +29,8 @@ int left;
 int right;
 }control_buttons;
 
-struct control_buttons default_controls[] = {{KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT},{'S','W','A','D'},{'s','w','a','d'}};
+struct control_buttons default_controls1[] = {{KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT},{KEY_DOWN, KEY_UP, KEY_LEFT, KEY_RIGHT}};
+struct control_buttons default_controls2[] = {{'S','W','A','D'},{'s','w','a','d'}};
 /*
 Голова змейки содержит в себе
 x,y - координаты текущей позиции
@@ -42,6 +44,7 @@ typedef struct snake_t
 	int y;
 	int direction;
 	size_t tsize;
+	int color;
 	struct tail_t *tail;
 	struct control_buttons *controls;
 } snake_t;
@@ -83,14 +86,19 @@ void initHead(struct snake_t *head, int x, int y)
 	head->direction = RIGHT;
 }
 
-void initSnake(snake_t *head, size_t size, int x, int y)
+void initSnake(snake_t *head[], size_t size, int x, int y, int i)
 {
+	head[i] = (snake_t*)malloc(sizeof(snake_t));
 	tail_t* tail = (tail_t*)malloc(MAX_TAIL_SIZE*sizeof(tail_t));
 	initTail(tail, MAX_TAIL_SIZE);
-	initHead(head, x, y);
-	head->tail = tail; // прикрепляем к	голове хвост
-	head->tsize = size+1;
-	head->controls =  default_controls;
+	initHead(head[i], x, y);
+	head[i]->color = 3;//default белый цвет
+	head[i]->tail = tail; // прикрепляем к	голове хвост
+	head[i]->tsize = size+1;
+	if (i==0)
+		head[i]->controls =  default_controls1;
+	else
+		head[i]->controls =  default_controls2;
 }
 
 /*
@@ -161,9 +169,10 @@ int getFoodsCount(struct food f[])
 	return count;
 }
 
-void printSnakeScore(int count)
+void printSnakeScore(snake_t *head,int i, int x,int y)
 {
-	mvprintw(0, 60,"the snake scored %d points out of %d possible ",count,MAX_FOOD_SIZE);
+	int score = head->tsize-1 -START_TAIL_SIZE;
+	mvprintw(x, y,"the snake %d score %d  ",i,score);
 }
 /*
 Увеличение хвоста на 1 элемент
@@ -219,14 +228,14 @@ void go(struct snake_t *head)
 			mvprintw(head->y, ++(head->x), "%c", ch);
 		break;
 		case UP:
-			if(head->y <= 2)
+			if(head->y <=2)
 				// Циклическое движение, чтобы не уходить за пределы экрана
 				head->y = max_y;		
 			mvprintw(--(head->y), head->x, "%c", ch);
 		break;
 		case DOWN:
 			if(head->y >=max_y )
-				head->y = 0;
+				head->y = 2;
 		mvprintw(++(head->y), head->x, "%c", ch);
 		break;
 		default:
@@ -268,6 +277,18 @@ int checkDirection(snake_t* snake, int32_t key)
 	return 1;
 }
 
+int the_snake_ate_itself(snake_t *head)
+{
+	int ret = 0;
+	
+	for(size_t i = head->tsize-1; i>0; i--)
+	{
+      if(head->x == (head->tail[i].x) && head->y == (head->tail[i].y))
+       ret = 1;
+	}
+	return ret;
+}
+
 
 //Для изменения направления движения используется функция:
 void changeDirection(snake_t* snake, const int32_t key)
@@ -297,10 +318,10 @@ void printExit(snake_t *head)
 
 //не совсем понятно как связать уровень с структурой змеи если только по длине хвоста
 // ... проще и логичнее отслеживать слопанные символы и поднимать уровень с каждым
-void printLevel(snake_t *head)
+void printLevel(snake_t *head,int x,int y)
 {
 	int level = head->tsize-1 -START_TAIL_SIZE;
-	mvprintw(1, 60,"Lvl %d ",level);
+	mvprintw(x, y,"Lvl %d ",level);
 }
 // придумал такую функцию  постановки на паузу 
 // холостой цикл
@@ -322,6 +343,29 @@ void pause()
 	mvprintw(7, 50,"                                ");
 }
 
+void setColor(int objectType)
+{
+	attroff(COLOR_PAIR(1));
+	attroff(COLOR_PAIR(2));
+	attroff(COLOR_PAIR(3));
+	attroff(COLOR_PAIR(4));
+	switch(objectType)
+	{
+		case 2: //snake 1
+			attron(COLOR_PAIR(2));
+			break;
+		case 4: //snake 2
+			attron(COLOR_PAIR(4));
+			break;
+		case 1: //food
+			attron(COLOR_PAIR(1));
+			break;
+		case 3: //default
+			attron(COLOR_PAIR(3));
+			break;
+	}
+}
+
 WINDOW * printEndScoreBox(int count)
 {
 	int height, width, start_y,start_x, max_y, max_x;
@@ -335,7 +379,7 @@ WINDOW * printEndScoreBox(int count)
 	char c = '*';
 	char c1 = '*';
 	box(win,(int)c,(int)c1);
-	mvwprintw(win,1,2,"The snake scored %d points",count);
+	mvwprintw(win,1,2,"The snakes scored %d points",count);
 	mvwprintw(win,2,2,"Press'F2' for new START");
 	mvwprintw(win,3,2,"Press'F10' for EXIT");
 	touchwin(win);
@@ -343,80 +387,255 @@ WINDOW * printEndScoreBox(int count)
 	return win;
 }
 
+void snake_submenu(WINDOW * win,snake_t *head[],int count, int index);
+
+int startMenu(snake_t *head[],int count)
+{
+	char *choices1[] = {
+                        "New game",
+                        "Snake1 color",
+                        "Snake2 color",
+                        "Exit",
+                  };
+                 
+	int height, width, start_y,start_x, max_y, max_x;
+	height = 10;
+	width = 40;
+	getmaxyx(stdscr, max_y, max_x);
+	start_x = (max_x/2)-width/2;
+	start_y = (max_y/2)-height/2;
+	WINDOW * win = newwin(height,width,start_y,start_x);
+	char c = '*';
+	char c1 = '*';
+	box(win,(int)c,(int)c1);
+	refresh();
+	raw(); // Откдючаем line buffering
+	noecho(); // Отключаем echo() режим при вызове getch
+	wrefresh(win);
+	keypad(win, TRUE);
+	mvwprintw(win, 1, 8, "SNAKE GAME MENU");
+	int choice=0;
+	int curpos=0;
+	int flag=1;
+	while (flag)
+	{
+		for(int i=0;i<4;i++)
+		{
+			if(i==curpos)
+				wattron(win, A_REVERSE);
+			mvwprintw(win, i+3, 10, choices1[i]);
+            if(i==curpos)
+				wattroff(win, A_REVERSE);
+		}
+		choice = wgetch(win);
+		switch(choice)
+		{
+			case KEY_UP:
+				curpos--;
+				if(curpos==-1)
+					curpos=3;
+				break;
+			case KEY_DOWN:
+				curpos++;
+				if(curpos==4)
+					curpos=0;
+				break;
+			default:
+				break;
+		}
+		if(choice ==10)
+			break;
+
+	}
+	if(curpos ==3 || curpos ==0)
+	{
+		wclear(win);
+		wborder(win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
+		wrefresh(win);
+		delwin(win);
+	}
+	//если жмакаем выбр цвета проваливаемся в субменю 
+	if(curpos ==1 || curpos ==2)
+	{
+		snake_submenu(win,head,curpos,curpos);
+	}
+return curpos;
+}
+
+void snake_submenu(WINDOW * win,snake_t *head[],int count,int index)
+{	
+	char c = '*';
+	char c1 = '*';
+	int choice=0;
+	int curpos=0;
+	int flag=1;
+	mvwprintw(win, 1, 8, "SNAKE COLOR MENU");
+	char *snake_menu[] = {
+                        "Color red",
+                        "Color blue",
+                        "Exit",
+                  };
+		wclear(win);
+		box(win,(int)c,(int)c1);
+		curpos=0;
+		while (flag)
+		{
+		for(int i=0;i<3;i++)
+		{
+			if(i==curpos)
+				wattron(win, A_REVERSE);
+			mvwprintw(win, i+3, 10, snake_menu[i]);
+			if(i==curpos)
+				wattroff(win, A_REVERSE);
+		}
+		choice = wgetch(win);
+		switch(choice)
+		{
+			case KEY_UP:
+				curpos--;
+				if(curpos==-1)
+					curpos=2;
+				break;
+			case KEY_DOWN:
+				curpos++;
+				if(curpos==3)
+				curpos=0;
+				break;
+			default:
+				break;
+		}
+		if(choice ==10)
+			break;
+		}
+	if(curpos==0)
+		head[index-1]->color=2;
+	if(curpos==1)
+		head[index-1]->color=4;
+	//возвращаемся в главное меню
+	startMenu(head,count);
+	
+}
+
+
+int distance(const snake_t snake, const struct food food) { // вычисляет количество ходов до еды
+	return (abs(snake.x - food.x) + abs(snake.y - food.y));
+}
+void autoChangeDirection(snake_t *snake, struct food food[], int foodSize)
+{
+	int pointer = 0;
+	for (int i = 1; i < foodSize; i++) { // ищем ближайшую еду
+		pointer = (distance(*snake, food[i]) < distance(*snake, food[pointer])) ? i : pointer;
+	}
+	if ((snake->direction == RIGHT || snake->direction == LEFT) && (snake->y != food[pointer].y)) { // горизонтальное движение
+		snake->direction = (food[pointer].y > snake->y) ? DOWN : UP;
+	} else if ((snake->direction == DOWN || snake->direction == UP) && (snake->x != food[pointer].x)) { // вертикальное движение
+		snake->direction = (food[pointer].x > snake->x) ? RIGHT : LEFT;
+	}
+}
+
+void update(snake_t *snake, struct food foods[], int key_pressed, int i, double *delay ,int ai)
+{
+	if (ai == 1)
+		autoChangeDirection(snake,foods,MAX_FOOD_SIZE);
+	setColor(snake->color);
+	go(snake);
+	goTail(snake);
+	setColor(1);
+	refreshFood(foods, MAX_FOOD_SIZE);// Обновляем еду
+	changeDirection(snake, key_pressed);
+	if (haveEat(snake,foods)) 
+	{
+		// увеличение хвоста 
+		addTail(snake);
+		// цветные красатульки
+		
+		setColor(1);
+		// вывод текущего счета 
+		printSnakeScore(snake,i,0,40+i*30);
+		
+		setColor(1);
+		//обновляем уровень 
+		printLevel(snake,1,40+i*30);
+		// увеличиваем скорость 
+		
+		*delay = *delay - 0.006;
+	}	
+	
+}
 
 int main()
 {
 	WINDOW *my_win;
+	int menuchoice=0;
 	int endgame=0;
-	snake_t* snake = (snake_t*)malloc(sizeof(snake_t));
+	int selfdestruction = 0;
+	snake_t* snake[PLAYERS];
+	
 	struct food* foods = (struct food*) malloc(sizeof(struct food)*MAX_FOOD_SIZE);
-	initSnake(snake,START_TAIL_SIZE,10,10);
+	
+	for (int i = 0; i < PLAYERS; i++)
+	{
+		initSnake(snake,START_TAIL_SIZE,40+i*10,10+i*10,i);
+	}
 	initFood(foods,MAX_FOOD_SIZE);
+	
 	initscr();
-	start_color();
 	cbreak();
-	init_pair(2, COLOR_RED, COLOR_BLACK);
+	
+	start_color();
 	init_pair(1, COLOR_GREEN, COLOR_BLACK);
+	init_pair(2, COLOR_RED, COLOR_BLACK);
 	init_pair(3, COLOR_WHITE, COLOR_BLACK);
+	init_pair(4, COLOR_BLUE, COLOR_BLACK);
+	menuchoice = startMenu(snake,2);
 	keypad(stdscr, TRUE); // Включаем F1, F2,стрелки и т.д.
 	raw(); // Откдючаем line buffering
 	noecho(); // Отключаем echo() режим при вызове getch
 	curs_set(FALSE); //Отключаем курсор
-	attron(COLOR_PAIR(2));
-	mvprintw(0, 1,"Use arrows for control. Press'q' for end GAME");
-	attron(COLOR_PAIR(3));
+	
+	setColor(2);
+	mvprintw(0, 1," Press'q' for end GAME");
+	
 	timeout(0); //Отключаем таймаут после нажатия клавиши в цикле
 	int key_pressed=0;
-	
+
+	setColor(1);
 	putFood(foods,MAX_FOOD_SIZE);
 
-	attron(COLOR_PAIR(1));
-	printSnakeScore(getFoodsCount(foods));
-	printLevel(snake);
-	attron(COLOR_PAIR(3));
-	refresh();
-	double DELAY = 0.1;
-	while( key_pressed != STOP_GAME) 
+	for (int i = 0; i < PLAYERS; i++)
 	{
-		
+		printSnakeScore(snake[i],i,0,40+i*30);
+		printLevel(snake[i],1,40+i*30);
+	}
+	
+	refresh();
+	double DELAY = 0.15;
+	while( key_pressed != STOP_GAME && menuchoice!=3) 
+	{
 		clock_t begin = clock();
 		key_pressed = getch(); // Считываем клавишу
-		go(snake);
-		goTail(snake);
 		if(key_pressed == 'p' || key_pressed == 'P')
 		{
 			 pause();
-		}
-		
+		}	
 		if(key_pressed == END_GAME)
 		{
 			endgame=1;
 		}
-		//timeout(50); // Задержка при отрисовке
-		changeDirection(snake, key_pressed);
-		refreshFood(foods, MAX_FOOD_SIZE);// Обновляем еду
-		if (haveEat(snake,foods)) 
+		
+		for (int i = 0; i < PLAYERS; i++)
 		{
-			// цветные красатульки
-			attron(COLOR_PAIR(1));
-			// вывод текущего счета 
-			printSnakeScore(getFoodsCount(foods));
-			attron(COLOR_PAIR(3));
-			// увеличение хвоста 
-			addTail(snake);
-			attron(COLOR_PAIR(1));
-			//обновляем уровень 
-			printLevel(snake);
-			// увеличиваем скорость 
-			DELAY = DELAY - 0.03;
-			attron(COLOR_PAIR(3));
+			if(i==0)
+				update(snake[i],foods,key_pressed,i,&DELAY,0);
+			if(i==1)
+				update(snake[i],foods,key_pressed,i,&DELAY,1);
+				
+			selfdestruction = the_snake_ate_itself(snake[i]);
 		}
 		//слопали всю еду пора показывать наш результат 
-		if(getFoodsCount(foods)== MAX_FOOD_SIZE || endgame==1)
+		if(getFoodsCount(foods)== MAX_FOOD_SIZE || endgame==1 || selfdestruction==1)
 		{
-			
 			my_win = printEndScoreBox(getFoodsCount(foods));
-			
 			//если нажали f2  и запустили игру заново
 			if(key_pressed == NEW_GAME)
 			{
@@ -424,27 +643,38 @@ int main()
 				//расставляем еду
 				putFood(foods,MAX_FOOD_SIZE);
 				//сбрасываем размер хвоста
-				resetTail(snake);
+				for (int i = 0; i < PLAYERS; i++)
+				{
+					resetTail(snake[i]);
+				}
 				//clrtoeol();
 				wclear(my_win);
 				wborder(my_win, ' ', ' ', ' ',' ',' ',' ',' ',' ');
 				wrefresh(my_win);
 				delwin(my_win);
 				endgame=0;
+				selfdestruction=0;
+				
+				
 				// цветные красатульки
-				attron(COLOR_PAIR(1));
-				printSnakeScore(getFoodsCount(foods));
-				printLevel(snake);
-				// цветные красатульки
-				attron(COLOR_PAIR(3));
+				for (int i = 0; i < PLAYERS; i++)
+				{
+					setColor(1);
+					printSnakeScore(snake[i],i,0,40+i*30);
+					setColor(1);
+					printLevel(snake[i],1,40+i*30);
+				}
 			}
 		}
-		
 		while ((double)(clock() - begin)/CLOCKS_PER_SEC<DELAY)
 		{}
-	}	
-	free(snake->tail);
-	free(snake);
+	}
+	
+	for (int i = 0; i < PLAYERS; i++)
+	{	
+		free(snake[i]->tail);
+		free(snake[i]);
+	}
 	endwin(); // Завершаем режим curses mod
 	
 	return 0;
