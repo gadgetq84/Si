@@ -18,7 +18,7 @@ void printLevel(dron_t *head,int x,int y)
 	mvprintw(x, y,"Lvl %d ",level);
 }
 
-int printEndScoreBox(int count)
+int printEndScoreBox(char * message,int count)
 {
 	int height, width, start_y,start_x, max_y, max_x;
 	int resultout = 0;
@@ -39,7 +39,7 @@ int printEndScoreBox(int count)
 	keypad(win, TRUE);
 	touchwin(win);
 	mvwprintw(win,1,2,"A %d harvests have been collected ",count);
-
+	mvwprintw(win,2,2,"%s ",message);
 	char *choices1[] = {
                         "Start harvesting",
                         "Exit",

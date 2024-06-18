@@ -85,7 +85,10 @@ int main()
 		//слопали все тыквы пора показывать наш результат 
 		if(itsfull==1 || endgame==1 || selfdestruction==1)
 		{
-			endchoice = printEndScoreBox(getHarvestsCount(harvest));
+			if(selfdestruction==1)
+				endchoice = printEndScoreBox("Collision over cart!!!",getHarvestsCount(harvest));
+			else
+				endchoice = printEndScoreBox("",getHarvestsCount(harvest));
 			if(endchoice==1)
 			{
 				//расставляем тыквы

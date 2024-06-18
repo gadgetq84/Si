@@ -17,7 +17,7 @@ void printDronScore(dron_t *head,int i, int x,int y);
 void printHarvestScore(int count);
 void printExit(dron_t *head);
 void printLevel(dron_t *head,int x,int y);
-int printEndScoreBox(int count);
+int printEndScoreBox(char * message,int count);
 void mainMenu(startsettings *menusettings);
 void dron_autopilotsubmenu(WINDOW * win,startsettings *menusettings,int index);
 void dron_selectsubmenu(WINDOW * win,startsettings *menusettings,int index);
